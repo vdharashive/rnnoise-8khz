@@ -60,9 +60,18 @@
    printf("%d, ", B(end:-1:1));
    printf("\n")
 */
+#if RNNOISE_SAMPLE_RATE == 48000
 const int eband20ms[NB_BANDS+2] = {
 /*0 100 200 300 400 500 600 750 900 1.1 1.2 1.4 1.6 1.8 2.1 2.4 2.7 3.0 3.4 3.9 4.4 4.9  5.5  6.2  7.0  7.9  8.8  9.9 11.2 12.6 14.1 15.9 17.8 20.0*/
   0, 2,  4,  6,  8,  10, 12, 15, 18, 21, 24, 28, 32, 36, 41, 47, 53, 60, 68, 77, 87, 98, 110, 124, 140, 157, 176, 198, 223, 251, 282, 317, 356, 400};
+#elif RNNOISE_SAMPLE_RATE == 8000
+const int eband20ms[NB_BANDS+2] = {
+/*Scaled ERB grid for 8 kHz (0-3.3 kHz useful range)*/
+  0, 1,  2,  3,  4,   5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
+ 18,19, 20, 21, 22,  23, 24, 26, 29, 33, 37, 42, 47, 53, 59, 67};
+#else
+#error "Unsupported RNNOISE_SAMPLE_RATE for band layout"
+#endif
 
 
 struct DenoiseState {
@@ -376,7 +385,7 @@ int rnn_compute_frame_features(DenoiseState *st, kiss_fft_cpx *X, kiss_fft_cpx *
   compute_band_corr(Exp, X, P);
   for (i=0;i<NB_BANDS;i++) Exp[i] = Exp[i]/sqrt(.001+Ex[i]*Ep[i]);
   dct(&features[NB_BANDS], Exp);
-  features[2*NB_BANDS] = .01*(pitch_index-300);
+  features[2*NB_BANDS] = .01f*(pitch_index-PITCH_FEATURE_CENTER);
   logMax = -2;
   follow = -2;
   for (i=0;i<NB_BANDS;i++) {

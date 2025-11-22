@@ -22,9 +22,21 @@ so that AVX2 (or SSE4.1) can at least be used as an option.
 Note that the autogen.sh script will automatically download the model files
 from the Xiph.Org servers, since those are too large to put in Git.
 
+To target 8 kHz / 16-bit PCM (e.g. telephony use-cases), rebuild the tools
+and library with the sample-rate override:
+
+% CPPFLAGS="-DRNNOISE_SAMPLE_RATE=8000" ./configure
+% make clean
+% make
+
+The build system will automatically pull in the pre-generated FFT tables
+for the requested sample rate.
+
 While it is meant to be used as a library, a simple command-line tool is
 provided as an example. It operates on RAW 16-bit (machine endian) mono
-PCM files sampled at 48 kHz. It can be used as:
+PCM files sampled at 48 kHz by default. The processing sample rate can be
+changed at compile time by defining RNNOISE_SAMPLE_RATE (currently 48000
+or 8000) before building. It can be used as:
 
 % ./examples/rnnoise_demo <noisy speech> <output denoised>
 
@@ -41,6 +53,9 @@ The models distributed with RNNoise are now trained using only the publicly
 available datasets listed below and using the training precedure described
 here. Exact results will still depend on the the exact mix of data used,
 on how long the training is performed and on the various random seeds involved.
+If you need to train a narrowband (8 kHz) model using the existing 48 kHz
+datasets, follow doc/training_pcm8k.html for the additional
+resampling and build steps.
 
 To train an RNNoise model, you need both clean speech data, and noise data.
 Both need to be sampled at 48 kHz, in 16-bit PCM format (machine endian).

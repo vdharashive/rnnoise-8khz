@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>RNNoise 8&nbsp;kHz PCM Training Notes</title>
+    <style>
+      body { font-family: sans-serif; line-height: 1.5; margin: 2rem auto; max-width: 840px; }
+      code { background: #f5f5f5; padding: 0 .2rem; }
+      pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
+      h1, h2, h3 { color: #333; }
+    </style>
+  </head>
+  <body>
+    <h1>Training RNNoise for 16‑bit PCM @ 8&nbsp;kHz</h1>
+
+    <p>
+      RNNoise now accepts a compile-time sample rate override via the
+      <code>RNNOISE_SAMPLE_RATE</code> macro (48&nbsp;kHz by default, 8&nbsp;kHz supported).
+      The FFT tables are dispatched through <code>src/rnnoise_tables.c</code>, which includes either
+      <code>rnnoise_tables_48k.c</code> or <code>rnnoise_tables_8k.c</code>.
+      The demo client now queries <code>rnnoise_get_frame_size()</code>, and
+      the feature extractor scales its RIR handling to the configured frame
+      length. The steps below document how to leverage these changes to train
+      and deploy a narrowband model while reusing the existing 48&nbsp;kHz datasets.
+    </p>
+
+    <h2>Prerequisites</h2>
+    <ul>
+      <li>SoX (or an equivalent resampler) for converting the provided 48&nbsp;kHz
+          speech/noise corpora to 8&nbsp;kHz.</li>
+      <li>Python 3 with PyTorch (used by <code>torch/rnnoise/train_rnnoise.py</code>).</li>
+      <li>A recent C toolchain (GCC/Clang) for building RNNoise.</li>
+    </ul>
+
+    <h2>1. Prepare 8&nbsp;kHz training audio</h2>
+    <p>
+      Start from the standard speech/noise archives referenced in
+      <code>datasets.txt</code> (or <code>tts_speech_48k.sw</code> /
+      <code>background_noise.sw</code>). Convert them to single-channel
+      16‑bit PCM at 8&nbsp;kHz:
+    </p>
+<pre><code>sox speech_48k.sw   -r 8000 -b 16 -c 1 speech_8k.pcm
+sox background.sw   -r 8000 -b 16 -c 1 noise_bg_8k.pcm
+sox foreground.sw   -r 8000 -b 16 -c 1 noise_fg_8k.pcm
+</code></pre>
+    <p>
+      (Downsample any RIRs that you plan to use as well; they are stored as
+      32‑bit floats, so <code>sox -t f32 -e float</code> works.)
+    </p>
+
+    <h2>2. Build the 8&nbsp;kHz toolchain</h2>
+    <p>
+      Reconfigure RNNoise with the sample-rate override. The dispatcher in
+      <code>src/rnnoise_tables.c</code> automatically selects the correct FFT tables.
+    </p>
+<pre><code>cd /home/ki0980/workspace/rnnoise
+CPPFLAGS="-DRNNOISE_SAMPLE_RATE=8000" ./configure
+make clean
+make -j$(nproc)
+</code></pre>
+    <p>
+      The rebuilt <code>dump_features</code>, <code>rnnoise_demo</code>, and
+      library APIs now work on 80-sample (10&nbsp;ms) frames. You can confirm by
+      running <code>./examples/rnnoise_demo</code> against an 8&nbsp;kHz PCM clip.
+    </p>
+
+    <h2>3. Generate training features</h2>
+    <p>
+      Use the rebuilt <code>dump_features</code> binary on the downsampled corpora:
+    </p>
+<pre><code>./dump_features speech_8k.pcm noise_bg_8k.pcm noise_fg_8k.pcm \
+               features_8k.f32 200000
+# or scripts/dump_features_parallel.sh if you need concurrency
+</code></pre>
+    <p>
+      The feature layout (98 floats per frame) is unchanged, so all PyTorch
+      tooling continues to work.
+    </p>
+
+    <h2>4. Train the network</h2>
+    <p>
+      Point the training script at the new feature file and choose a suffix
+      that reflects the narrowband model:
+    </p>
+<pre><code>python3 torch/rnnoise/train_rnnoise.py \
+        features_8k.f32 runs/8k_model --suffix _8k --epochs 200
+</code></pre>
+    <p>
+      Monitor the loss curves as usual (roughly 75k weight updates are still
+      a good rule of thumb).
+    </p>
+
+    <h2>5. Export weights and rebuild</h2>
+    <p>
+      Convert the checkpoint to C sources and copy them into <code>src/</code>:
+    </p>
+<pre><code>python3 torch/rnnoise/dump_rnnoise_weights.py --quantize \
+        runs/8k_model/checkpoints/rnnoise_8k_200.pth rnnoise_8k_c
+cp rnnoise_8k_c/rnnoise_data.c rnnoise_8k_c/rnnoise_data.h src/
+</code></pre>
+    <p>
+      Rebuild (still with <code>RNNOISE_SAMPLE_RATE=8000</code>) and install or
+      package the resulting library.
+    </p>
+
+    <h2>6. Runtime verification</h2>
+    <p>
+      Denoise an 8&nbsp;kHz PCM file with the updated demo program:
+    </p>
+<pre><code>./examples/rnnoise_demo noisy_8k.pcm denoised_8k.pcm
+</code></pre>
+    <p>
+      Integrators can call <code>rnnoise_get_frame_size()</code> to discover the
+      frame length (80 samples for 8&nbsp;kHz).
+    </p>
+
+    <h2>Appendix</h2>
+    <ul>
+      <li>If you ever experiment with other sample rates, run
+          <code>gcc ... src/dump_rnnoise_tables.c</code> with the desired
+          <code>RNNOISE_SAMPLE_RATE</code> and drop the generated file in
+          <code>src/rnnoise_tables_&lt;rate&gt;.c</code>.</li>
+      <li>The feature extractor now scales its RIR tapering window with
+          <code>FRAME_SIZE</code>. Existing scripts do not require changes.</li>
+      <li>Only the 48&nbsp;kHz and 8&nbsp;kHz band layouts are shipped.
+          Other sample rates will trigger a compile-time error until new
+          tables are generated.</li>
+    </ul>
+  </body>
+</html>
+

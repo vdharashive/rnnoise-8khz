@@ -26,14 +26,15 @@
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "rnnoise.h"
-
-#define FRAME_SIZE 480
 
 int main(int argc, char **argv) {
   int i;
   int first = 1;
-  float x[FRAME_SIZE];
+  int frame_size;
+  float *x;
+  short *tmp;
   FILE *f1, *fout;
   DenoiseState *st;
 #ifdef USE_WEIGHTS_FILE
@@ -47,18 +48,30 @@ int main(int argc, char **argv) {
     fprintf(stderr, "usage: %s <noisy speech> <output denoised>\n", argv[0]);
     return 1;
   }
+  frame_size = rnnoise_get_frame_size();
+  x = (float*)malloc(frame_size*sizeof(*x));
+  tmp = (short*)malloc(frame_size*sizeof(*tmp));
+  if (x==NULL || tmp==NULL) {
+    fprintf(stderr, "failed to allocate frame buffers\n");
+    free(x);
+    free(tmp);
+    rnnoise_destroy(st);
+    return 1;
+  }
+
   f1 = fopen(argv[1], "rb");
   fout = fopen(argv[2], "wb");
   while (1) {
-    short tmp[FRAME_SIZE];
-    fread(tmp, sizeof(short), FRAME_SIZE, f1);
-    if (feof(f1)) break;
-    for (i=0;i<FRAME_SIZE;i++) x[i] = tmp[i];
+    size_t read = fread(tmp, sizeof(short), frame_size, f1);
+    if (read < (size_t)frame_size) break;
+    for (i=0;i<frame_size;i++) x[i] = tmp[i];
     rnnoise_process_frame(st, x, x);
-    for (i=0;i<FRAME_SIZE;i++) tmp[i] = x[i];
-    if (!first) fwrite(tmp, sizeof(short), FRAME_SIZE, fout);
+    for (i=0;i<frame_size;i++) tmp[i] = x[i];
+    if (!first) fwrite(tmp, sizeof(short), frame_size, fout);
     first = 0;
   }
+  free(x);
+  free(tmp);
   rnnoise_destroy(st);
   fclose(f1);
   fclose(fout);

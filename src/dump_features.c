@@ -42,6 +42,10 @@
 #include "kiss_fft.h"
 #include "src/_kiss_fft_guts.h"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 int lowpass = FREQ_SIZE;
 int band_lp = NB_BANDS;
 
@@ -75,10 +79,14 @@ kiss_fft_cpx *load_rir(const char *rir_file, kiss_fft_state *fft, int early) {
   X = (kiss_fft_cpx*)calloc(fft->nfft, sizeof(*X));
   len = fread(rir, sizeof(*rir), RIR_MAX_DURATION, f);
   if (early) {
-    for (i=0;i<240;i++) {
-      rir[480+i] *= (1 - i/240.f);
+    const int early_offset = FRAME_SIZE;
+    const int fade_len = FRAME_SIZE/2;
+    for (i=0;i<fade_len && early_offset + i < RIR_MAX_DURATION;i++) {
+      rir[early_offset+i] *= (1 - i/(float)fade_len);
     }
-    RNN_CLEAR(&rir[240+480], RIR_MAX_DURATION-240-480);
+    if (early_offset + fade_len < RIR_MAX_DURATION) {
+      RNN_CLEAR(&rir[early_offset+fade_len], RIR_MAX_DURATION-early_offset-fade_len);
+    }
   }
   for (i=0;i<len;i++) x[i].r = rir[i];
   rnn_fft_c(fft, x, X);
@@ -397,7 +405,7 @@ int main(int argc, char **argv) {
     rand_resp(a_noise, b_noise);
     rand_resp(a_fgnoise, b_fgnoise);
     rand_resp(a_sig, b_sig);
-    lowpass = FREQ_SIZE * 3000./24000. * pow(50., rand()/(double)RAND_MAX);
+    lowpass = FREQ_SIZE * 3000./(0.5f*RNNOISE_SAMPLE_RATE) * pow(50., rand()/(double)RAND_MAX);
     for (i=0;i<NB_BANDS;i++) {
       if (eband20ms[i] > lowpass) {
         band_lp = i;

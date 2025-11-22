@@ -28,17 +28,28 @@
 #include "kiss_fft.h"
 #include "nnet.h"
 
-#define FRAME_SIZE 480
+#ifndef RNNOISE_SAMPLE_RATE
+#define RNNOISE_SAMPLE_RATE 48000
+#endif
+
+#if RNNOISE_SAMPLE_RATE != 48000 && RNNOISE_SAMPLE_RATE != 8000
+#error "RNNoise currently supports 48000 Hz or 8000 Hz sample rates"
+#endif
+
+#define RNNOISE_SCALE_FROM_48K(value) ((int)(((long long)(value) * (long long)RNNOISE_SAMPLE_RATE) / 48000))
+
+#define FRAME_SIZE RNNOISE_SCALE_FROM_48K(480)
 #define WINDOW_SIZE (2*FRAME_SIZE)
 #define FREQ_SIZE (FRAME_SIZE + 1)
 #define NB_BANDS 32
 #define NB_FEATURES (2*NB_BANDS+1)
 
 
-#define PITCH_MIN_PERIOD 60
-#define PITCH_MAX_PERIOD 768
-#define PITCH_FRAME_SIZE 960
+#define PITCH_MIN_PERIOD RNNOISE_SCALE_FROM_48K(60)
+#define PITCH_MAX_PERIOD RNNOISE_SCALE_FROM_48K(768)
+#define PITCH_FRAME_SIZE RNNOISE_SCALE_FROM_48K(960)
 #define PITCH_BUF_SIZE (PITCH_MAX_PERIOD+PITCH_FRAME_SIZE)
+#define PITCH_FEATURE_CENTER RNNOISE_SCALE_FROM_48K(300)
 
 extern const WeightArray rnnoise_arrays[];
 
