@@ -32,16 +32,38 @@
       <li>A recent C toolchain (GCC/Clang) for building RNNoise.</li>
     </ul>
 
+    <h2>Download the reference datasets</h2>
+    <p>
+      These are the same public corpora used for the baseline 48&nbsp;kHz models,
+      now published under the filenames listed at
+      <code>https://media.xiph.org/rnnoise/data/</code>. Run the commands below
+      inside the workspace (adjust paths if needed):
+    </p>
+<pre><code>wget https://media.xiph.org/rnnoise/data/tts_speech_48k.sw
+wget https://media.xiph.org/rnnoise/data/background_noise_v2.sw
+wget https://media.xiph.org/rnnoise/data/foreground_noise_v2.sw
+wget https://media.xiph.org/rnnoise/data/contrib_noise.sw          # optional extra noise
+wget https://media.xiph.org/rnnoise/data/synthetic_noise.sw        # optional extra noise
+wget https://media.xiph.org/rnnoise/data/measured_rirs-v3.tar.gz   # optional RIRs
+wget https://media.xiph.org/rnnoise/data/datasets.txt              # manifest (optional)
+</code></pre>
+
     <h2>1. Prepare 8&nbsp;kHz training audio</h2>
     <p>
       Start from the standard speech/noise archives referenced in
-      <code>datasets.txt</code> (or <code>tts_speech_48k.sw</code> /
-      <code>background_noise.sw</code>). Convert them to single-channel
-      16‑bit PCM at 8&nbsp;kHz:
+      <code>datasets.txt</code> (or <code>tts_speech_48k.sw</code>,
+      <code>background_noise_v2.sw</code>, and
+      <code>foreground_noise_v2.sw</code>). These <code>.sw</code> files are raw
+      16‑bit mono PCM at 48&nbsp;kHz; since they have no header, you must tell
+      SoX the input and output types explicitly. Convert them to single-channel
+      16‑bit PCM at 8&nbsp;kHz with:
     </p>
-<pre><code>sox speech_48k.sw   -r 8000 -b 16 -c 1 speech_8k.pcm
-sox background.sw   -r 8000 -b 16 -c 1 noise_bg_8k.pcm
-sox foreground.sw   -r 8000 -b 16 -c 1 noise_fg_8k.pcm
+<pre><code>sox -t s16 -r 48000 -c 1 tts_speech_48k.sw \
+    -t s16 -r 8000  -c 1 speech_8k.pcm
+sox -t s16 -r 48000 -c 1 background_noise_v2.sw \
+    -t s16 -r 8000  -c 1 noise_bg_8k.pcm
+sox -t s16 -r 48000 -c 1 foreground_noise_v2.sw \
+    -t s16 -r 8000  -c 1 noise_fg_8k.pcm
 </code></pre>
     <p>
       (Downsample any RIRs that you plan to use as well; they are stored as
@@ -62,6 +84,9 @@ make -j$(nproc)
       The rebuilt <code>dump_features</code>, <code>rnnoise_demo</code>, and
       library APIs now work on 80-sample (10&nbsp;ms) frames. You can confirm by
       running <code>./examples/rnnoise_demo</code> against an 8&nbsp;kHz PCM clip.
+      Always use a library and tools that were built with the same
+      <code>RNNOISE_SAMPLE_RATE</code> you plan to use for training and
+      deployment (8000&nbsp;Hz in this document).
     </p>
 
     <h2>3. Generate training features</h2>
@@ -73,8 +98,10 @@ make -j$(nproc)
 # or scripts/dump_features_parallel.sh if you need concurrency
 </code></pre>
     <p>
-      The feature layout (98 floats per frame) is unchanged, so all PyTorch
-      tooling continues to work.
+      Run this from the RNNoise repository root so that <code>./dump_features</code>
+      resolves to the 8&nbsp;kHz-aware binary you just built. The feature layout
+      (98 floats per frame) is unchanged, so all PyTorch tooling continues to work
+      without modification.
     </p>
 
     <h2>4. Train the network</h2>
