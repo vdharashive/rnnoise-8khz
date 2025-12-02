@@ -24,7 +24,7 @@ from the Xiph.Org servers, since those are too large to put in Git.
 
 While it is meant to be used as a library, a simple command-line tool is
 provided as an example. It operates on RAW 16-bit (machine endian) mono
-PCM files sampled at 48 kHz. It can be used as:
+PCM files sampled at 8 kHz. It can be used as:
 
 % ./examples/rnnoise_demo <noisy speech> <output denoised>
 
@@ -35,6 +35,18 @@ The latest version of the source is available from
 https://gitlab.xiph.org/xiph/rnnoise .  The GitHub repository
 is a convenience copy.
 
+== 8kHz Version ==
+
+This version of RNNoise has been modified to work with 8kHz sampling rate
+instead of the original 48kHz. This makes it suitable for telephony applications
+where 8kHz is the standard sampling rate. All frame sizes and frequency bands
+have been adjusted proportionally.
+
+To convert existing 48kHz training data to 8kHz, use the provided scripts:
+% python3 scripts/resample_pcm.py input_48khz.pcm output_8khz.pcm
+
+For a complete training pipeline, see scripts/train_8khz_pipeline.sh
+
 == Training ==
 
 The models distributed with RNNoise are now trained using only the publicly
@@ -43,12 +55,13 @@ here. Exact results will still depend on the the exact mix of data used,
 on how long the training is performed and on the various random seeds involved.
 
 To train an RNNoise model, you need both clean speech data, and noise data.
-Both need to be sampled at 48 kHz, in 16-bit PCM format (machine endian).
+Both need to be sampled at 8 kHz, in 16-bit PCM format (machine endian).
 Clean speech data can be obtained from the datasets listed in the datasets.txt
 file, or by downloaded the already-concatenation of those files in
-https://media.xiph.org/rnnoise/data/tts_speech_48k.sw
+https://media.xiph.org/rnnoise/data/tts_speech_48k.sw (then resample to 8kHz)
 For noise data, we suggest the background_noise.sw and foreground_noise.sw
 (or later versions) noise files from https://media.xiph.org/rnnoise/data/
+(then resample to 8kHz using the provided scripts)
 The foreground_noise.sw file contains noise signals that are meant to be added
 to the background noise (e.g. keyboard sounds). Optionally, the foreground noise
 file can even be denoised with a traditional denoiser (e.g. libspeexdsp) to

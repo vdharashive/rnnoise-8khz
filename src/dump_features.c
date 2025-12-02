@@ -397,7 +397,7 @@ int main(int argc, char **argv) {
     rand_resp(a_noise, b_noise);
     rand_resp(a_fgnoise, b_fgnoise);
     rand_resp(a_sig, b_sig);
-    lowpass = FREQ_SIZE * 3000./24000. * pow(50., rand()/(double)RAND_MAX);
+    lowpass = FREQ_SIZE * 3000./8000. * pow(50., rand()/(double)RAND_MAX);
     for (i=0;i<NB_BANDS;i++) {
       if (eband20ms[i] > lowpass) {
         band_lp = i;
