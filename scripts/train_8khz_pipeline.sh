@@ -84,7 +84,7 @@ echo ""
 
 # Step 2: Build the dump_features tool
 echo "Step 2: Building dump_features tool..."
-if [ ! -f "src/dump_features" ]; then
+if [ ! -f "dump_features" ]; then
     ./autogen.sh
     ./configure
     make clean
@@ -100,11 +100,11 @@ echo ""
 echo "Step 3: Generating training features..."
 if [ ! -f "$FEATURES_FILE" ]; then
     echo "Running dump_features with $SEQUENCE_COUNT sequences..."
-    ./src/dump_features "$RESAMPLED_DATA_DIR/speech_8khz.pcm" \
-                       "$RESAMPLED_DATA_DIR/noise_8khz.pcm" \
-                       "$RESAMPLED_DATA_DIR/fgnoise_8khz.pcm" \
-                       "$FEATURES_FILE" \
-                       "$SEQUENCE_COUNT"
+    ./dump_features "$RESAMPLED_DATA_DIR/speech_8khz.pcm" \
+                    "$RESAMPLED_DATA_DIR/noise_8khz.pcm" \
+                    "$RESAMPLED_DATA_DIR/fgnoise_8khz.pcm" \
+                    "$FEATURES_FILE" \
+                    "$SEQUENCE_COUNT"
 else
     echo "Features file already exists, skipping generation..."
 fi
