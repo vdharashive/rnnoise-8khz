@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-ORIGINAL_DATA_DIR="/path/to/original/48khz/data"  # Set this to your 48kHz training data location
+ORIGINAL_DATA_DIR="."  # Current directory - adjust if your 48kHz files are elsewhere
 RESAMPLED_DATA_DIR="./training_data_8khz"
 FEATURES_FILE="./features_8khz.f32"
 MODEL_OUTPUT_DIR="./rnnoise_8khz_model"
@@ -21,30 +21,65 @@ echo "Features file: $FEATURES_FILE"
 echo "Model output directory: $MODEL_OUTPUT_DIR"
 echo ""
 
-# Step 1: Resample training data from 48kHz to 8kHz
-echo "Step 1: Resampling training data to 8kHz..."
-if [ ! -f "$RESAMPLED_DATA_DIR/speech_8khz.pcm" ]; then
-    echo "Resampling speech data..."
-    python3 scripts/resample_pcm.py "$ORIGINAL_DATA_DIR/speech_48khz.pcm" "$RESAMPLED_DATA_DIR/speech_8khz.pcm"
+# Step 1: Prepare training data (resample or use existing 8kHz files)
+echo "Step 1: Preparing training data..."
+
+# Check if 8kHz files already exist in current directory
+if [ -f "./speech_8khz.pcm" ] && [ -f "./background_noise.sw" ] && [ -f "./foreground_noise.sw" ]; then
+    echo "Found existing 8kHz files in current directory, using them directly..."
+    RESAMPLED_DATA_DIR="."
+elif [ -f "./tts_speech_48k.sw" ] || [ -f "./background_noise.sw" ] || [ -f "./foreground_noise.sw" ]; then
+    echo "Found original 48kHz files, will resample them..."
+    ORIGINAL_DATA_DIR="."
 else
-    echo "Speech data already resampled, skipping..."
+    echo "No training data found in current directory."
+    echo "Please ensure you have either:"
+    echo "  - 8kHz files: speech_8khz.pcm, background_noise.sw, foreground_noise.sw"
+    echo "  - 48kHz files: tts_speech_48k.sw, background_noise.sw, foreground_noise.sw"
+    exit 1
+fi
+
+# Resample or copy files as needed
+if [ ! -f "$RESAMPLED_DATA_DIR/speech_8khz.pcm" ]; then
+    if [ -f "./speech_8khz.pcm" ]; then
+        echo "Using existing 8kHz speech data..."
+        cp ./speech_8khz.pcm "$RESAMPLED_DATA_DIR/speech_8khz.pcm"
+    elif [ -f "./tts_speech_48k.sw" ]; then
+        echo "Resampling speech data from 48kHz to 8kHz..."
+        python3 scripts/resample_pcm.py "./tts_speech_48k.sw" "$RESAMPLED_DATA_DIR/speech_8khz.pcm"
+    else
+        echo "ERROR: No speech data found (speech_8khz.pcm or tts_speech_48k.sw)"
+        exit 1
+    fi
+else
+    echo "Speech data already prepared, skipping..."
 fi
 
 if [ ! -f "$RESAMPLED_DATA_DIR/noise_8khz.pcm" ]; then
-    echo "Resampling background noise data..."
-    python3 scripts/resample_pcm.py "$ORIGINAL_DATA_DIR/background_noise_48khz.pcm" "$RESAMPLED_DATA_DIR/noise_8khz.pcm"
+    if [ -f "./background_noise.sw" ]; then
+        echo "Resampling background noise data from 48kHz to 8kHz..."
+        python3 scripts/resample_pcm.py "./background_noise.sw" "$RESAMPLED_DATA_DIR/noise_8khz.pcm"
+    else
+        echo "ERROR: No background noise data found (background_noise.sw)"
+        exit 1
+    fi
 else
-    echo "Background noise data already resampled, skipping..."
+    echo "Background noise data already prepared, skipping..."
 fi
 
 if [ ! -f "$RESAMPLED_DATA_DIR/fgnoise_8khz.pcm" ]; then
-    echo "Resampling foreground noise data..."
-    python3 scripts/resample_pcm.py "$ORIGINAL_DATA_DIR/foreground_noise_48khz.pcm" "$RESAMPLED_DATA_DIR/fgnoise_8khz.pcm"
+    if [ -f "./foreground_noise.sw" ]; then
+        echo "Resampling foreground noise data from 48kHz to 8kHz..."
+        python3 scripts/resample_pcm.py "./foreground_noise.sw" "$RESAMPLED_DATA_DIR/fgnoise_8khz.pcm"
+    else
+        echo "ERROR: No foreground noise data found (foreground_noise.sw)"
+        exit 1
+    fi
 else
-    echo "Foreground noise data already resampled, skipping..."
+    echo "Foreground noise data already prepared, skipping..."
 fi
 
-echo "Data resampling completed."
+echo "Data preparation completed."
 echo ""
 
 # Step 2: Build the dump_features tool
