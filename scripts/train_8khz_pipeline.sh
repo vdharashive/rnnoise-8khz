@@ -118,7 +118,10 @@ cd torch/rnnoise
 
 if [ ! -f "rnnoise_50.pth" ]; then
     echo "Starting training..."
-    python3 train_rnnoise.py "$FEATURES_FILE" "$MODEL_OUTPUT_DIR" \
+    # Use absolute path for features file since we're now in torch/rnnoise/
+    FEATURES_PATH="../$FEATURES_FILE"
+    MODEL_DIR="../$MODEL_OUTPUT_DIR"
+    python3 train_rnnoise.py "$FEATURES_PATH" "$MODEL_DIR" \
                             --epochs 50 \
                             --batch-size 64 \
                             --sequence-length 1000
