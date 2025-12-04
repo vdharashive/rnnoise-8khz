@@ -200,43 +200,57 @@ resample_to_8khz() {
             cd "$WORKSPACE_DIR"
         fi
 
-        # Convert RIRs to 8kHz if needed and create list
+        # Resample RIRs from 48kHz to 8kHz and create list
         if [ -d "$DATA_DIR/8khz/rirs" ] && [ ! -f "$DATA_DIR/8khz/rir_list.txt" ]; then
-            print_step "Processing RIR files for 8kHz training..."
+            print_step "Resampling RIR files from 48kHz to 8kHz..."
 
-            # Convert any WAV RIRs to 8kHz PCM format expected by dump_features
             mkdir -p "$DATA_DIR/8khz/rirs_8khz"
             local converted_count=0
 
-            for rir_file in "$DATA_DIR/8khz/rirs"/*.wav; do
+            # Process .f32 files (32-bit float, 48kHz)
+            for rir_file in "$DATA_DIR/8khz/rirs"/*.f32; do
                 if [ -f "$rir_file" ]; then
-                    local base_name=$(basename "$rir_file" .wav)
-                    local pcm_file="$DATA_DIR/8khz/rirs_8khz/${base_name}.pcm"
+                    local base_name=$(basename "$rir_file" .f32)
+                    local f32_file="$DATA_DIR/8khz/rirs_8khz/${base_name}.f32"
 
-                    if [ ! -f "$pcm_file" ]; then
-                        # Convert WAV to raw PCM at 8kHz
-                        sox "$rir_file" -r 8000 -b 16 -c 1 -e signed-integer "$pcm_file" 2>/dev/null || {
-                            print_warning "Failed to convert $rir_file"
+                    if [ ! -f "$f32_file" ]; then
+                        # Resample 48kHz .f32 to 8kHz .f32 using Python/scipy
+                        python3 -c "
+import numpy as np
+from scipy import signal
+import struct
+
+# Read 48kHz f32 file
+with open('$rir_file', 'rb') as f:
+    data = f.read()
+    samples_48k = np.frombuffer(data, dtype=np.float32)
+
+# Resample from 48kHz to 8kHz (ratio = 8000/48000 = 1/6)
+ratio = 8000.0 / 48000.0
+samples_8k = signal.resample(samples_48k, int(len(samples_48k) * ratio))
+
+# Write 8kHz f32 file
+with open('$f32_file', 'wb') as f:
+    f.write(samples_8k.astype(np.float32).tobytes())
+" && ((converted_count++)) || {
+                            print_warning "Failed to resample $rir_file"
                             continue
                         }
-                        ((converted_count++))
                     fi
 
                     # Add to list
-                    echo "$pcm_file" >> "$DATA_DIR/8khz/rir_list.txt"
-                fi
-            done
-
-            # Also include any existing PCM files
-            for rir_file in "$DATA_DIR/8khz/rirs"/*.pcm; do
-                if [ -f "$rir_file" ]; then
-                    # Assume they're already 8kHz
-                    echo "$rir_file" >> "$DATA_DIR/8khz/rir_list.txt"
+                    echo "$f32_file" >> "$DATA_DIR/8khz/rir_list.txt"
                 fi
             done
 
             local total_rirs=$(wc -l < "$DATA_DIR/8khz/rir_list.txt" 2>/dev/null || echo "0")
-            echo -e "${GREEN}✓${NC} Processed RIR files: $converted_count converted, $total_rirs total available"
+            echo -e "${GREEN}✓${NC} Resampled RIR files: $converted_count processed, $total_rirs total available"
+
+            if [ "$total_rirs" -gt 0 ]; then
+                echo -e "${GREEN}✓${NC} RIR list created for 8kHz training"
+            else
+                print_warning "No RIR files were successfully processed"
+            fi
         fi
     fi
 

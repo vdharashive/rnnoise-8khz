@@ -61,7 +61,14 @@ The pipeline automatically downloads and uses **measured_rirs-v3.tar.gz** (8MB) 
 ### What are RIRs?
 - **Room Impulse Responses**: Measurements of how sound behaves in different acoustic spaces
 - Capture **reverberation, echoes, and frequency response** of real rooms
-- Include **hundreds of WAV files** from various environments (offices, classrooms, auditoriums)
+- **Format**: .f32 files (32-bit float) at **48kHz sampling rate**
+- Include **hundreds of impulse responses** from various environments (offices, classrooms, auditoriums)
+
+### Sampling Rate Analysis
+- **Original**: 48kHz (from RNNoise 48kHz dataset)
+- **Required**: 8kHz (for 8kHz model training)
+- **Resampling**: 48kHz → 8kHz (6:1 compression ratio)
+- **Duration**: Preserved during resampling
 
 ### How RIRs Improve Training
 - **Data Augmentation**: Convolve clean speech with RIRs during feature generation
@@ -73,9 +80,9 @@ The pipeline automatically downloads and uses **measured_rirs-v3.tar.gz** (8MB) 
 ```
 measured_rirs-v3.tar.gz (8MB)
     ↓ Download + Extract
-RIR WAV files (various sample rates)
-    ↓ Convert to 8kHz PCM
-RIR PCM files (8kHz, 16-bit)
+RIR .f32 files (48kHz, 32-bit float)
+    ↓ Resample 48kHz → 8kHz
+RIR .f32 files (8kHz, 32-bit float)
     ↓ Create rir_list.txt
 RIR List File
     ↓ dump_features --rir_list
