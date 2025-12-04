@@ -191,12 +191,53 @@ resample_to_8khz() {
     done
 
     # Extract and process RIR data if available
-    if [ -f "$DATA_DIR/48khz/measured_rirs-v3.tar.gz" ] && [ ! -d "$DATA_DIR/8khz/rirs" ]; then
-        print_step "Extracting room impulse responses..."
-        mkdir -p "$DATA_DIR/8khz/rirs"
-        cd "$DATA_DIR/8khz/rirs"
-        tar -xzf ../measured_rirs-v3.tar.gz 2>/dev/null || true
-        cd "$WORKSPACE_DIR"
+    if [ -f "$DATA_DIR/48khz/measured_rirs-v3.tar.gz" ]; then
+        if [ ! -d "$DATA_DIR/8khz/rirs" ]; then
+            print_step "Extracting room impulse responses..."
+            mkdir -p "$DATA_DIR/8khz/rirs"
+            cd "$DATA_DIR/8khz/rirs"
+            tar -xzf ../measured_rirs-v3.tar.gz 2>/dev/null || true
+            cd "$WORKSPACE_DIR"
+        fi
+
+        # Convert RIRs to 8kHz if needed and create list
+        if [ -d "$DATA_DIR/8khz/rirs" ] && [ ! -f "$DATA_DIR/8khz/rir_list.txt" ]; then
+            print_step "Processing RIR files for 8kHz training..."
+
+            # Convert any WAV RIRs to 8kHz PCM format expected by dump_features
+            mkdir -p "$DATA_DIR/8khz/rirs_8khz"
+            local converted_count=0
+
+            for rir_file in "$DATA_DIR/8khz/rirs"/*.wav; do
+                if [ -f "$rir_file" ]; then
+                    local base_name=$(basename "$rir_file" .wav)
+                    local pcm_file="$DATA_DIR/8khz/rirs_8khz/${base_name}.pcm"
+
+                    if [ ! -f "$pcm_file" ]; then
+                        # Convert WAV to raw PCM at 8kHz
+                        sox "$rir_file" -r 8000 -b 16 -c 1 -e signed-integer "$pcm_file" 2>/dev/null || {
+                            print_warning "Failed to convert $rir_file"
+                            continue
+                        }
+                        ((converted_count++))
+                    fi
+
+                    # Add to list
+                    echo "$pcm_file" >> "$DATA_DIR/8khz/rir_list.txt"
+                fi
+            done
+
+            # Also include any existing PCM files
+            for rir_file in "$DATA_DIR/8khz/rirs"/*.pcm; do
+                if [ -f "$rir_file" ]; then
+                    # Assume they're already 8kHz
+                    echo "$rir_file" >> "$DATA_DIR/8khz/rir_list.txt"
+                fi
+            done
+
+            local total_rirs=$(wc -l < "$DATA_DIR/8khz/rir_list.txt" 2>/dev/null || echo "0")
+            echo -e "${GREEN}✓${NC} Processed RIR files: $converted_count converted, $total_rirs total available"
+        fi
     fi
 
     echo -e "${GREEN}✓${NC} Resampling completed"
@@ -260,7 +301,16 @@ generate_training_features() {
         print_step "Running dump_features with $SEQUENCE_COUNT sequences..."
         print_warning "This will process the full dataset and may take several hours"
 
-        ./src/dump_features \
+        # Check if RIRs are available and use them
+        RIR_CMD=""
+        if [ -f "$DATA_DIR/8khz/rir_list.txt" ]; then
+            print_step "Using RIR augmentation for realistic training data..."
+            RIR_CMD="--rir_list $DATA_DIR/8khz/rir_list.txt"
+        else
+            print_warning "No RIR data found - training without room acoustics simulation"
+        fi
+
+        ./src/dump_features $RIR_CMD \
             "$DATA_DIR/8khz/speech_8khz.pcm" \
             "$DATA_DIR/8khz/background_noise_8khz.pcm" \
             "$DATA_DIR/8khz/foreground_noise_8khz.pcm" \
@@ -274,6 +324,9 @@ generate_training_features() {
     if [ -f "training_output/features_8khz_full.f32" ]; then
         local size=$(stat -f%z "training_output/features_8khz_full.f32" 2>/dev/null || stat -c%s "training_output/features_8khz_full.f32" 2>/dev/null)
         echo -e "${GREEN}✓${NC} Features file generated ($(numfmt --to=iec-i --suffix=B $size))"
+        if [ -f "$DATA_DIR/8khz/rir_list.txt" ]; then
+            echo -e "${GREEN}✓${NC} RIR augmentation was applied during feature generation"
+        fi
     fi
 }
 
