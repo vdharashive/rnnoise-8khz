@@ -45,14 +45,48 @@ Xiph.Org Dataset (66GB)
 
 ### Phase 2: Model Training (~24-48 hours)
 ```
-8kHz Training Data
-    ↓ Feature Extraction
-Training Features (.f32 file)
+8kHz Training Data + RIRs (Room Impulse Responses)
+    ↓ Feature Extraction (with --rir_list for reverberation)
+Training Features (.f32 file) with realistic room acoustics
     ↓ Neural Network Training
 PyTorch Models (.pth files)
     ↓ Export to C Code
-Optimized 8kHz Library
+Optimized 8kHz Library with room acoustics awareness
 ```
+
+## 🏠 Room Impulse Responses (RIRs) - Reverberation Training
+
+The pipeline automatically downloads and uses **measured_rirs-v3.tar.gz** (8MB) to add realistic room acoustics to training:
+
+### What are RIRs?
+- **Room Impulse Responses**: Measurements of how sound behaves in different acoustic spaces
+- Capture **reverberation, echoes, and frequency response** of real rooms
+- Include **hundreds of WAV files** from various environments (offices, classrooms, auditoriums)
+
+### How RIRs Improve Training
+- **Data Augmentation**: Convolve clean speech with RIRs during feature generation
+- **Realistic Training**: Model learns to handle real-world room acoustics
+- **Better Performance**: Improved noise suppression in various acoustic environments
+- **Robustness**: Works better in conference calls, video meetings, etc.
+
+### RIR Processing Pipeline
+```
+measured_rirs-v3.tar.gz (8MB)
+    ↓ Download + Extract
+RIR WAV files (various sample rates)
+    ↓ Convert to 8kHz PCM
+RIR PCM files (8kHz, 16-bit)
+    ↓ Create rir_list.txt
+RIR List File
+    ↓ dump_features --rir_list
+Feature Generation with Reverberation
+```
+
+### RIR Benefits
+- ✅ **Acoustic Environment Awareness**: Works in different rooms
+- ✅ **Telephony Optimization**: Better performance in VoIP/conference systems
+- ✅ **Real-world Robustness**: Handles office noise, room echoes, etc.
+- ✅ **No Extra Cost**: Only adds ~10-15 minutes to training time
 
 ## 📁 Directory Structure
 
