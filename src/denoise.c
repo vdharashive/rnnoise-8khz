@@ -473,10 +473,7 @@ float rnnoise_process_frame(DenoiseState *st, float *out, const float *in) {
 
   if (!silence) {
 #if !TRAINING
-    // compute_rnn(&st->model, &st->rnn, g, &vad_prob, features, st->arch);
-    // Use simple gain for testing
-    for (i=0;i<NB_BANDS;i++) g[i] = 1.0f;
-    vad_prob = 0.5f;
+    compute_rnn(&st->model, &st->rnn, g, &vad_prob, features, st->arch);
 #endif
     // rnn_pitch_filter(st->delayed_X, st->delayed_P, st->delayed_Ex, st->delayed_Ep, st->delayed_Exp, g);
     for (i=0;i<NB_BANDS;i++) {
