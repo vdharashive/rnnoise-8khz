@@ -169,11 +169,16 @@ def compile_with_model(model_export_dir, model_name, rnnoise_root):
         if not files_changed:
             print(f"Warning: Model files for {model_name} appear identical to original")
 
-        # Force complete rebuild by touching source files and cleaning thoroughly
+        # Force complete rebuild by deleting binary and touching source files
         print(f"Compiling RNNoise with {model_name}...")
 
+        # Delete the binary to force complete rebuild
+        binary_path = os.path.join(rnnoise_root, 'examples', 'rnnoise_demo')
+        if os.path.exists(binary_path):
+            os.remove(binary_path)
+
         # Touch the modified source files to force rebuild
-        src_files_to_touch = ['src/rnnoise_data.c', 'src/rnnoise_data.h']
+        src_files_to_touch = ['src/rnnoise_data.c', 'src/rnnoise_data.h', 'src/rnn.c', 'src/rnn.h']
         for src_file in src_files_to_touch:
             full_path = os.path.join(rnnoise_root, src_file)
             if os.path.exists(full_path):
@@ -184,8 +189,8 @@ def compile_with_model(model_export_dir, model_name, rnnoise_root):
         cmd = ['make', 'clean']
         subprocess.run(cmd, cwd=rnnoise_root)
 
-        # Remove specific object files that depend on the model
-        cmd = ['rm', '-f', 'src/rnnoise_data.lo', 'src/rnnoise_data.o', 'src/rnn.lo', 'src/rnn.o']
+        # Remove all object files to ensure clean rebuild
+        cmd = ['rm', '-f', 'src/*.o', 'src/*.lo', 'examples/*.o']
         subprocess.run(cmd, cwd=rnnoise_root)
 
         # Rebuild
